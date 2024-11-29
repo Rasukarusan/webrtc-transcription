@@ -4,7 +4,7 @@ import * as fs from "fs";
 import * as ffmpeg from "fluent-ffmpeg";
 import { OpenAI } from "openai";
 
-const PORT = 9999;
+const PORT = process.env.PORT ?? 9999;
 const TEMP_FILE = "temp.raw";
 const OUTPUT_MP3_FILE = "output.mp3";
 
@@ -13,7 +13,7 @@ const openai = new OpenAI({
 });
 
 // WebSocketサーバーをセットアップ
-const wss = new WebSocketServer({ port: PORT });
+const wss = new WebSocketServer({ port: Number(PORT) });
 console.log(`WebSocket server running on ws://localhost:${PORT}`);
 
 wss.on("connection", (ws: WebSocket) => {
@@ -35,12 +35,6 @@ wss.on("connection", (ws: WebSocket) => {
     }
   });
 
-  // TEMP_FILEの書き込み終了後にMP3変換を開始
-  tempFileStream.on("finish", () => {
-    console.log("TEMP_FILE write completed. Starting MP3 conversion...");
-    encodeToMp3(TEMP_FILE, OUTPUT_MP3_FILE);
-  });
-
   ws.on("close", () => {
     console.log("Client disconnected");
     audioStream.end();
@@ -49,6 +43,12 @@ wss.on("connection", (ws: WebSocket) => {
 
   ws.on("error", (error) => {
     console.error("WebSocket error:", error);
+  });
+
+  // TEMP_FILEの書き込み終了後にMP3変換を開始
+  tempFileStream.on("finish", () => {
+    console.log("TEMP_FILE write completed. Starting MP3 conversion...");
+    encodeToMp3(TEMP_FILE, OUTPUT_MP3_FILE);
   });
 });
 
