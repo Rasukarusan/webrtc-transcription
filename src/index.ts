@@ -1,28 +1,16 @@
 import { WebSocketServer, WebSocket } from "ws";
 import { Writable } from "stream";
-import { SpeechClient } from "@google-cloud/speech";
 import * as fs from "fs";
 import * as ffmpeg from "fluent-ffmpeg";
 import { OpenAI } from "openai";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-// Google Speech-to-Textのクライアント設定
-const speechClient = new SpeechClient();
-const requestConfig = {
-  config: {
-    encoding: "LINEAR16" as const,
-    sampleRateHertz: 16000,
-    languageCode: "ja-JP", // 日本語
-  },
-  interimResults: true, // 中間結果を取得
-};
-
 const PORT = 9999;
 const TEMP_FILE = "temp.raw";
 const OUTPUT_MP3_FILE = "output.mp3";
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 // WebSocketサーバーをセットアップ
 const wss = new WebSocketServer({ port: PORT });
@@ -33,20 +21,8 @@ wss.on("connection", (ws: WebSocket) => {
 
   // 一時ファイルへの書き込みストリームを作成
   const tempFileStream = fs.createWriteStream(TEMP_FILE);
-
-  // Google Speech-to-Textのストリームを作成
-  // const recognizeStream = speechClient.streamingRecognize(requestConfig)
-  //   .on('data', data => {
-  //     const transcription = data.results[0]?.alternatives[0]?.transcript || '';
-  //     console.log(`Transcription: ${transcription}`);
-  //   })
-  //   .on('error', error => console.error('Speech-to-Text error:', error))
-  //   .on('end', () => console.log('Speech-to-Text stream ended'));
-
-  // 音声データをGoogle Speech-to-TextとTEMP_FILEに書き込む
   const audioStream = new Writable({
     write(chunk: Buffer, encoding: string, callback: () => void) {
-      // recognizeStream.write(chunk); // Speech-to-Textに送信
       tempFileStream.write(chunk); // TEMP_FILEに書き込む
       callback();
     },
@@ -69,7 +45,6 @@ wss.on("connection", (ws: WebSocket) => {
     console.log("Client disconnected");
     audioStream.end();
     tempFileStream.end(); // TEMP_FILEの書き込みを終了
-    // recognizeStream.end(); // Speech-to-Textの終了
   });
 
   ws.on("error", (error) => {
