@@ -3,6 +3,11 @@ import { Writable } from "stream";
 import { SpeechClient } from "@google-cloud/speech";
 import * as fs from "fs";
 import * as ffmpeg from "fluent-ffmpeg";
+import { OpenAI } from "openai";
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 // Google Speech-to-Textのクライアント設定
 const speechClient = new SpeechClient();
@@ -72,6 +77,9 @@ wss.on("connection", (ws: WebSocket) => {
   });
 });
 
+/**
+ * rawファイルをmp3に変換
+ */
 const encodeToMp3 = (rawPath: string, outputPath: string) => {
   ffmpeg(rawPath)
     .inputOptions("-f s16le") // PCM形式（16ビットリトルエンディアン）
@@ -91,4 +99,30 @@ const encodeToMp3 = (rawPath: string, outputPath: string) => {
     .run();
 };
 
-encodeToMp3(TEMP_FILE, "./output-test.mp3");
+// encodeToMp3(TEMP_FILE, "./output-test.mp3");
+
+/**
+ * 音声をテキストに変換
+ */
+const audioToText = async (audioPath: string) => {
+  try {
+    console.log(`🚀 Start audioToText: ${audioPath}`);
+    const response = await openai.audio.transcriptions.create({
+      model: "whisper-1",
+      file: fs.createReadStream(audioPath),
+      language: "ja",
+      response_format: "verbose_json",
+    });
+    console.log(response);
+    const outputPath = "./transcription_result.json";
+    fs.writeFileSync(outputPath, JSON.stringify(response, null, 2), "utf-8");
+    console.log(`✅ Transcription saved to ${outputPath}`);
+  } catch (error) {
+    console.error(
+      "Error during transcription:",
+      error.response?.data || error.message
+    );
+  }
+};
+
+// audioToText("./output.mp3");
