@@ -1,9 +1,9 @@
-import {WebSocketServer, WebSocket} from "ws";
-import {Writable} from "stream";
+import { WebSocketServer, WebSocket } from "ws";
+import { Writable } from "stream";
 import * as fs from "fs";
 import * as ffmpeg from "fluent-ffmpeg";
-import {OpenAI} from "openai";
-import {SpeechClient} from "@google-cloud/speech";
+import { OpenAI } from "openai";
+import { SpeechClient } from "@google-cloud/speech";
 
 const PORT = process.env.PORT ?? 9999;
 const TEMP_FILE = "temp.raw";
@@ -15,7 +15,7 @@ const openai = new OpenAI({
 const speechClient = new SpeechClient();
 
 // WebSocketサーバーをセットアップ
-const wss = new WebSocketServer({port: Number(PORT)});
+const wss = new WebSocketServer({ port: Number(PORT) });
 console.log(`WebSocket server running on ws://localhost:${PORT}`);
 
 wss.on("connection", (ws: WebSocket) => {
@@ -38,7 +38,8 @@ wss.on("connection", (ws: WebSocket) => {
         ?.map((result) => result.alternatives?.[0].transcript)
         .join("\n");
       // テキストを出力
-      console.log(`Transcription: ${transcription}`);
+      console.clear();
+      console.log(transcription);
     })
     .on("error", (error) => {
       console.error("Speech-to-Text error:", error);
@@ -74,8 +75,8 @@ wss.on("connection", (ws: WebSocket) => {
 
   // TEMP_FILEの書き込み終了後にMP3変換を開始
   tempFileStream.on("finish", () => {
-    console.log("TEMP_FILE write completed. Starting MP3 conversion...");
     encodeToMp3(TEMP_FILE, OUTPUT_MP3_FILE);
+    audioToText(OUTPUT_MP3_FILE);
   });
 });
 
@@ -101,24 +102,23 @@ const encodeToMp3 = (rawPath: string, outputPath: string) => {
     .run();
 };
 
-// encodeToMp3(TEMP_FILE, "./output-test2.mp3");
+// encodeToMp3(TEMP_FILE, "./output.mp3");
 
 /**
  * 音声をテキストに変換
  */
 const audioToText = async (audioPath: string) => {
   try {
-    console.log(`🚀 Start audioToText: ${audioPath}`);
     const response = await openai.audio.transcriptions.create({
       model: "whisper-1",
       file: fs.createReadStream(audioPath),
       language: "ja",
       response_format: "verbose_json",
     });
-    console.log(response);
+    console.log("✅ 音声テキスト化：", response.text);
     const outputPath = "./transcription_result.json";
     fs.writeFileSync(outputPath, JSON.stringify(response, null, 2), "utf-8");
-    console.log(`✅ Transcription saved to ${outputPath}`);
+    summarize(response.text);
   } catch (error) {
     console.error(
       "Error during transcription:",
@@ -128,3 +128,28 @@ const audioToText = async (audioPath: string) => {
 };
 
 // audioToText("./output.mp3");
+
+/**
+ * 要約
+ */
+const summarize = async (content: string) => {
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "system",
+          content:
+            "あなたは優秀なライターです。以下の会議の音声を要約してください。",
+        },
+        { role: "user", content: content },
+      ],
+      max_tokens: 500,
+      temperature: 0.7,
+    });
+
+    console.log("✅ AI要約:", response.choices[0].message.content);
+  } catch (error) {
+    console.error("エラー:", error.response?.data || error.message);
+  }
+};
