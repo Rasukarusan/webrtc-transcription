@@ -85,7 +85,7 @@ wss.on("connection", (ws: WebSocket) => {
 const encodeToMp3 = (rawPath: string, outputPath: string) => {
   ffmpeg(rawPath)
     .inputOptions("-f s16le") // PCM形式（16ビットリトルエンディアン）
-    .inputOptions("-ar 44100") // サンプリングレート 16kHz
+    .inputOptions("-ar 44100") // サンプリングレート 44100Hz
     .inputOptions("-ac 1") // モノラル
     .audioCodec("libmp3lame") // MP3エンコード
     .audioBitrate("192k") // 推奨値: 128k以上
