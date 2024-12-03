@@ -1,8 +1,9 @@
-import { WebSocketServer, WebSocket } from "ws";
-import { Writable } from "stream";
+import {WebSocketServer, WebSocket} from "ws";
+import {Writable} from "stream";
 import * as fs from "fs";
 import * as ffmpeg from "fluent-ffmpeg";
-import { OpenAI } from "openai";
+import {OpenAI} from "openai";
+import {SpeechClient} from "@google-cloud/speech";
 
 const PORT = process.env.PORT ?? 9999;
 const TEMP_FILE = "temp.raw";
@@ -11,18 +12,43 @@ const OUTPUT_MP3_FILE = "output.mp3";
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
+const speechClient = new SpeechClient();
 
 // WebSocketサーバーをセットアップ
-const wss = new WebSocketServer({ port: Number(PORT) });
+const wss = new WebSocketServer({port: Number(PORT)});
 console.log(`WebSocket server running on ws://localhost:${PORT}`);
 
 wss.on("connection", (ws: WebSocket) => {
   console.log("Client connected");
 
+  // Speech-to-Textのストリーミングリクエストを作成
+  const request = {
+    config: {
+      encoding: "LINEAR16" as const, // PCM形式（16ビットリトルエンディアン）
+      sampleRateHertz: 44100, // サンプリングレート (クライアントが送信する音声に合わせる)
+      languageCode: "ja-JP", // 日本語
+    },
+    interimResults: true, // 中間結果を取得するかどうか
+  };
+
+  const recognizeStream = speechClient
+    .streamingRecognize(request)
+    .on("data", (data) => {
+      const transcription = data.results
+        ?.map((result) => result.alternatives?.[0].transcript)
+        .join("\n");
+      // テキストを出力
+      console.log(`Transcription: ${transcription}`);
+    })
+    .on("error", (error) => {
+      console.error("Speech-to-Text error:", error);
+    });
+
   // 一時ファイルへの書き込みストリームを作成
   const tempFileStream = fs.createWriteStream(TEMP_FILE);
   const audioStream = new Writable({
     write(chunk: Buffer, encoding: string, callback: () => void) {
+      recognizeStream.write(chunk);
       tempFileStream.write(chunk); // TEMP_FILEに書き込む
       callback();
     },
@@ -38,6 +64,7 @@ wss.on("connection", (ws: WebSocket) => {
   ws.on("close", () => {
     console.log("Client disconnected");
     audioStream.end();
+    recognizeStream.end();
     tempFileStream.end(); // TEMP_FILEの書き込みを終了
   });
 
@@ -74,7 +101,7 @@ const encodeToMp3 = (rawPath: string, outputPath: string) => {
     .run();
 };
 
-// encodeToMp3(TEMP_FILE, "./output-test.mp3");
+// encodeToMp3(TEMP_FILE, "./output-test2.mp3");
 
 /**
  * 音声をテキストに変換

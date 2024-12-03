@@ -3,3 +3,5 @@
 .env
 output.mp3
 temp.raw
+transcription_result.json
+google-service-account.json
