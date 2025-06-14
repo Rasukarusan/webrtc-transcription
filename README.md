@@ -29,4 +29,4 @@ yarn dev
 
 ## Reference
 
-- [oVice で会議を文字起こしする仕組みを作る]()
+- [oVice で会議を文字起こしする仕組みを作る](https://qiita.com/Rasukarusan/items/e42b3bc0e6c85476e8ef)
